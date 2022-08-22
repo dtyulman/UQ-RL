@@ -1,3 +1,4 @@
+from collections import defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -11,6 +12,7 @@ def get_chain_policy(agent, env):
 
 
 def train(agent, env, num_episodes, batch_size, rollout_len, early_end_episode=True):
+    # episode_log = defaultdict(lambda:torch.zeros(num_episodes))
     episode_total_reward = torch.zeros(num_episodes)
     episode_intrinsic_reward = torch.zeros_like(episode_total_reward)
     episode_intrinsic_reward_max = torch.zeros_like(episode_total_reward)
@@ -77,22 +79,23 @@ def train(agent, env, num_episodes, batch_size, rollout_len, early_end_episode=T
                   f'critic_loss={critic_loss:.1e}, steps={t}, '
                   f'farthest={farthest_state}')
 
-    return episode_total_reward, episode_critic_loss, episode_intrinsic_reward.detach()
+    return episode_total_reward, episode_critic_loss, episode_intrinsic_reward.detach(), episode_farthest_state
 
 #%%
 discount_factor = 0.9
 intrinsic_factor = 0
-num_episodes = 300
-batch_size = 50
+num_episodes = 30
+batch_size = 10
 early_end_episode = True
 entropy_reg = 0
 
-chain_len_list = [50] #np.arange(5,18,2)
+chain_len_list = [10] #np.arange(5,18,2)
 
 episode_total_reward_list = []
 episode_intrinsic_reward_list = []
 episode_critic_loss_list = []
 episode_policy_list = []
+episode_farthest_state_list = []
 for chain_len in chain_len_list:
     #environment setup
     print('chain_len=', chain_len)
@@ -108,13 +111,14 @@ for chain_len in chain_len_list:
     init_chain_policy = get_chain_policy(agent, env)
 
     rollout_len = chain_len*2
-    episode_total_reward, episode_critic_loss, episode_intrinsic_reward = \
+    episode_total_reward, episode_critic_loss, episode_intrinsic_reward, episode_farthest_state = \
         train(agent, env, num_episodes, batch_size, rollout_len, early_end_episode=True)
 
     episode_total_reward_list.append(episode_total_reward)
     episode_intrinsic_reward_list.append(episode_intrinsic_reward)
     episode_critic_loss_list.append(episode_critic_loss)
     episode_policy_list.append(get_chain_policy(agent, env))
+    episode_farthest_state_list.append(episode_farthest_state)
 
 
 #%% Plot training progression and initial/final policy for one chain environment
@@ -136,18 +140,22 @@ for chain_len in chain_len_list:
 
 #%%
 cmap = plt.colormaps.get('cool')
-fig1, ax1 = plt.subplots(2,1)
+fig1, ax1 = plt.subplots(3,1)
 fig2, ax2 = plt.subplots()
-for i, (etr, eir, cl, pol) in enumerate(zip(episode_total_reward_list, episode_intrinsic_reward_list,
-                                            chain_len_list, episode_policy_list)):
+for i, (etr, eir, fs, cl, pol) in enumerate(zip(episode_total_reward_list,
+                                                episode_intrinsic_reward_list,
+                                                episode_farthest_state_list,
+                                                chain_len_list,
+                                                episode_policy_list)):
     c = cmap(i/len(episode_total_reward_list))
     ax1[0].plot(etr, color=c, label=f'len={cl}')
     ax1[1].plot(eir.detach(), color=c)
+    ax1[2].plot(fs, color=c)
     ax2.plot(pol, color=c)
-ax1[0].set_title('Total reward')
 ax1[0].set_ylabel('Extrinsic')
 ax1[1].set_ylabel('Intrinsic')
-ax1[1].set_xlabel('Episodes')
+ax1[2].set_ylabel('Farthest state')
+ax1[-1].set_xlabel('Episodes')
 ax1[0].legend()
 ax2.set_ylabel('P(right)')
 ax2.set_xlabel('State')
