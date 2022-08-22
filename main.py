@@ -85,7 +85,6 @@ intrinsic_factor = 0
 num_episodes = 300
 batch_size = 50
 early_end_episode = True
-use_critic = False
 entropy_reg = 0
 
 chain_len_list = [50] #np.arange(5,18,2)
